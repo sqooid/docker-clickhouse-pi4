@@ -33,12 +33,13 @@ RUN sed -i "s|http://archive.ubuntu.com|${apt_archive}|g" /etc/apt/sources.list 
 
 # install
 COPY --from=builder /app/clickhouse /clickhouse
-RUN chmod +x /clickhouse
+RUN chmod +x /clickhouse && cp /clickhouse /usr/bin/clickhouse
+
 
 # post install
 # we need to allow "others" access to clickhouse folder, because docker container
 # can be started with arbitrary uid (openshift usecase)
-RUN clickhouse-local -q 'SELECT * FROM system.build_options' \
+RUN clickhouse local -q 'SELECT * FROM system.build_options' \
   && mkdir -p /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client \
   && chmod ugo+Xrw -R /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client
 

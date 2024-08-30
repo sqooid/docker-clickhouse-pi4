@@ -143,7 +143,7 @@ if [ -n "${RUN_INITDB_SCRIPTS}" ]; then
         fi
 
         # Listen only on localhost until the initialization is done
-        /usr/bin/clickhouse su "${USER}:${GROUP}" /usr/bin/clickhouse-server --config-file="$CLICKHOUSE_CONFIG" -- --listen_host=127.0.0.1 &
+        /usr/bin/clickhouse su "${USER}:${GROUP}" /usr/bin/clickhouse server --config-file="$CLICKHOUSE_CONFIG" -- --listen_host=127.0.0.1 &
         pid="$!"
 
         # check if clickhouse is ready to accept connections
@@ -158,7 +158,7 @@ if [ -n "${RUN_INITDB_SCRIPTS}" ]; then
             sleep 1
         done
 
-        clickhouseclient=( clickhouse-client --multiquery --host "127.0.0.1" -u "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" )
+        clickhouseclient=( clickhouse client --multiquery --host "127.0.0.1" -u "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" )
 
         echo
 
@@ -208,12 +208,12 @@ if [[ $# -lt 1 ]] || [[ "$1" == "--"* ]]; then
     if [[ "${CLICKHOUSE_DOCKER_RESTART_ON_EXIT:-0}" -eq "1" ]]; then
         while true; do
             # This runs the server as a child process of the shell script:
-            /usr/bin/clickhouse su "${USER}:${GROUP}" /usr/bin/clickhouse-server --config-file="$CLICKHOUSE_CONFIG" "$@" ||:
+            /usr/bin/clickhouse su "${USER}:${GROUP}" /usr/bin/clickhouse server --config-file="$CLICKHOUSE_CONFIG" "$@" ||:
             echo >&2 'ClickHouse Server exited, and the environment variable CLICKHOUSE_DOCKER_RESTART_ON_EXIT is set to 1. Restarting the server.'
         done
     else
         # This replaces the shell script with the server:
-        exec /usr/bin/clickhouse su "${USER}:${GROUP}" /usr/bin/clickhouse-server --config-file="$CLICKHOUSE_CONFIG" "$@"
+        exec /usr/bin/clickhouse su "${USER}:${GROUP}" /usr/bin/clickhouse server --config-file="$CLICKHOUSE_CONFIG" "$@"
     fi
 fi
 
