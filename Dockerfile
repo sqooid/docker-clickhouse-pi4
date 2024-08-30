@@ -9,6 +9,6 @@ WORKDIR /app
 COPY --from=builder /app/clickhouse /app/clickhouse
 RUN chmod +x ./clickhouse
 COPY ./entrypoint.sh ./
-RUN chmod +x ./entrypoin.sh
+RUN chmod +x ./entrypoint.sh
 
 CMD [ "./entrypoint.sh" ]
