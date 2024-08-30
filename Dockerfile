@@ -59,9 +59,9 @@ RUN arch=${TARGETARCH:-arm64} \
   && cd /tmp \
   && if [ -n "${DIRECT_DOWNLOAD_URLS}" ]; then \
   echo "installing from provided urls with tgz packages: ${DIRECT_DOWNLOAD_URLS}" \
-  # && for url in $DIRECT_DOWNLOAD_URLS; do \
-  # echo "Get ${url}" \
-  # && wget -c -q "$url" \
+  && for url in $DIRECT_DOWNLOAD_URLS; do \
+  echo "Get ${url}" \
+  && wget -c -q "$url" \
   ; done \
   else \
   for package in ${PACKAGES}; do \
