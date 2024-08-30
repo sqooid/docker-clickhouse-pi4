@@ -52,14 +52,17 @@ ARG DEFAULT_GID="101"
 RUN addgroup -S -g "${DEFAULT_GID}" clickhouse && \
   adduser -S -h "/var/lib/clickhouse" -s /bin/bash -G clickhouse -g "ClickHouse server" -u "${DEFAULT_UID}" clickhouse
 
+COPY --from=downloader /app/clickhouse /usr/bin/clickhouse
+RUN chmod +x /usr/bin/clickhouse
+
 RUN arch=${TARGETARCH:-arm64} \
   && cd /tmp \
   && if [ -n "${DIRECT_DOWNLOAD_URLS}" ]; then \
-  # echo "installing from provided urls with tgz packages: ${DIRECT_DOWNLOAD_URLS}" \
+  echo "installing from provided urls with tgz packages: ${DIRECT_DOWNLOAD_URLS}" \
   # && for url in $DIRECT_DOWNLOAD_URLS; do \
   # echo "Get ${url}" \
   # && wget -c -q "$url" \
-  # ; done \
+  ; done \
   else \
   for package in ${PACKAGES}; do \
   echo "Get ${REPOSITORY}/${package}-${VERSION}-${arch}.tgz" \
