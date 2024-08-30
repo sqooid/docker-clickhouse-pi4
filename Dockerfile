@@ -23,12 +23,12 @@ ARG apt_archive="http://archive.ubuntu.com"
 RUN sed -i "s|http://archive.ubuntu.com|${apt_archive}|g" /etc/apt/sources.list \
   && groupadd -r clickhouse --gid=101 \
   && useradd -r -g clickhouse --uid=101 --home-dir=/var/lib/clickhouse --shell=/bin/bash clickhouse \
-  && apt-get update \
-  && apt-get install --yes --no-install-recommends \
-  ca-certificates \
-  locales \
-  tzdata \
-  wget \
+  # && apt-get update \
+  # && apt-get install --yes --no-install-recommends \
+  # ca-certificates \
+  # locales \
+  # tzdata \
+  # wget \
   && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
 
 # install
