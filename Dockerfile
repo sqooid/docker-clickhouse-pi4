@@ -8,5 +8,7 @@ FROM ubuntu
 WORKDIR /app
 COPY --from=builder /app/clickhouse /app/clickhouse
 RUN chmod +x ./clickhouse
+COPY ./entrypoint.sh ./
+RUN chmod +x ./entrypoin.sh
 
-CMD [ "./clickhouse", "server" ]
+CMD [ "./entrypoint.sh" ]
