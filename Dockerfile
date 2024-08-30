@@ -52,8 +52,6 @@ ARG DEFAULT_GID="101"
 RUN addgroup -S -g "${DEFAULT_GID}" clickhouse && \
   adduser -S -h "/var/lib/clickhouse" -s /bin/bash -G clickhouse -g "ClickHouse server" -u "${DEFAULT_UID}" clickhouse
 
-COPY --from=downloader /app/clickhouse /usr/bin/clickhouse
-RUN chmod +x /usr/bin/clickhouse
 
 RUN arch=${TARGETARCH:-arm64} \
   && cd /tmp \
@@ -82,6 +80,9 @@ RUN arch=${TARGETARCH:-arm64} \
   && apk add --no-cache bash tzdata \
   && cp /usr/share/zoneinfo/UTC /etc/localtime \
   && echo "UTC" > /etc/timezone
+
+COPY --from=downloader /app/clickhouse /usr/bin/clickhouse
+RUN chmod +x /usr/bin/clickhouse
 
 ARG DEFAULT_CLIENT_CONFIG_DIR="/etc/clickhouse-client"
 ARG DEFAULT_SERVER_CONFIG_DIR="/etc/clickhouse-server"
