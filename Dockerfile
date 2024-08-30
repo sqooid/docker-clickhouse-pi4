@@ -42,11 +42,11 @@ RUN clickhouse-local -q 'SELECT * FROM system.build_options' \
   && mkdir -p /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client \
   && chmod ugo+Xrw -R /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client
 
-RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
-ENV TZ UTC
+RUN locale-gen=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+ENV TZ=UTC
 
 RUN mkdir /docker-entrypoint-initdb.d
 
@@ -56,6 +56,6 @@ COPY entrypoint.sh /entrypoint.sh
 EXPOSE 9000 8123 9009
 VOLUME /var/lib/clickhouse
 
-ENV CLICKHOUSE_CONFIG /etc/clickhouse-server/config.xml
+ENV CLICKHOUSE_CONFIG=/etc/clickhouse-server/config.xml
 
 ENTRYPOINT ["/entrypoint.sh"]
