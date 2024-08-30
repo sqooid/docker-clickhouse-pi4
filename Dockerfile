@@ -23,10 +23,10 @@ ARG apt_archive="http://archive.ubuntu.com"
 RUN sed -i "s|http://archive.ubuntu.com|${apt_archive}|g" /etc/apt/sources.list \
   && groupadd -r clickhouse --gid=101 \
   && useradd -r -g clickhouse --uid=101 --home-dir=/var/lib/clickhouse --shell=/bin/bash clickhouse \
-  # && apt-get update \
-  # && apt-get install --yes --no-install-recommends \
+  && apt-get update \
+  && apt-get install --yes --no-install-recommends \
   # ca-certificates \
-  # locales \
+  locales \
   # tzdata \
   # wget \
   && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
@@ -43,7 +43,7 @@ RUN clickhouse local -q 'SELECT * FROM system.build_options' \
   && mkdir -p /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client \
   && chmod ugo+Xrw -R /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client
 
-RUN locale-gen=en_US.UTF-8
+RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
