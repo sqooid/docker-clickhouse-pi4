@@ -1,18 +1,45 @@
-FROM curlimages/curl AS builder
+FROM curlimages/curl AS downloader
 
 WORKDIR /app
 RUN curl -OL https://builds.clickhouse.com/master/aarch64v80compat/clickhouse
 
-FROM ubuntu
+FROM ubuntu:20.04 AS glibc-donor
+ARG TARGETARCH=arm64
 
-# see https://github.com/moby/moby/issues/4032#issuecomment-192327844
-# It could be removed after we move on a version 23:04+
-ARG DEBIAN_FRONTEND=noninteractive
+RUN arch=${TARGETARCH:-arm64} \
+  && case $arch in \
+  amd64) rarch=x86_64 ;; \
+  arm64) rarch=aarch64 ;; \
+  esac \
+  && ln -s "${rarch}-linux-gnu" /lib/linux-gnu
 
-# ARG for quick switch to a given ubuntu mirror
-ARG apt_archive="http://archive.ubuntu.com"
 
-# We shouldn't use `apt upgrade` to not change the upstream image. It's updated biweekly
+FROM alpine
+
+ENV LANG=en_US.UTF-8 \
+  LANGUAGE=en_US:en \
+  LC_ALL=en_US.UTF-8 \
+  TZ=UTC \
+  CLICKHOUSE_CONFIG=/etc/clickhouse-server/config.xml
+
+COPY --from=glibc-donor /lib/linux-gnu/libc.so.6 /lib/linux-gnu/libdl.so.2 /lib/linux-gnu/libm.so.6 /lib/linux-gnu/libpthread.so.0 /lib/linux-gnu/librt.so.1 /lib/linux-gnu/libnss_dns.so.2 /lib/linux-gnu/libnss_files.so.2 /lib/linux-gnu/libresolv.so.2 /lib/linux-gnu/ld-2.31.so /lib/
+COPY --from=glibc-donor /etc/nsswitch.conf /etc/
+COPY docker_related_config.xml /etc/clickhouse-server/config.d/
+COPY entrypoint.sh /entrypoint.sh
+
+ARG TARGETARCH
+RUN arch=${TARGETARCH:-arm64} \
+  && case $arch in \
+  amd64) mkdir -p /lib64 && ln -sf /lib/ld-2.31.so /lib64/ld-linux-x86-64.so.2 ;; \
+  arm64) ln -sf /lib/ld-2.31.so /lib/ld-linux-aarch64.so.1 ;; \
+  esac
+
+# lts / testing / prestable / etc
+ARG REPO_CHANNEL="stable"
+ARG REPOSITORY="https://packages.clickhouse.com/tgz/${REPO_CHANNEL}"
+ARG VERSION="24.8.2.3"
+ARG PACKAGES="clickhouse-common-static"
+ARG DIRECT_DOWNLOAD_URLS=""
 
 # user/group precreated explicitly with fixed uid/gid on purpose.
 # It is especially important for rootless containers: in that case entrypoint
@@ -20,44 +47,58 @@ ARG apt_archive="http://archive.ubuntu.com"
 # We do that in advance at the begining of Dockerfile before any packages will be
 # installed to prevent picking those uid / gid by some unrelated software.
 # The same uid / gid (101) is used both for alpine and ubuntu.
-RUN sed -i "s|http://archive.ubuntu.com|${apt_archive}|g" /etc/apt/sources.list \
-  && groupadd -r clickhouse --gid=101 \
-  && useradd -r -g clickhouse --uid=101 --home-dir=/var/lib/clickhouse --shell=/bin/bash clickhouse \
-  # && apt-get update \
-  # && apt-get install --yes --no-install-recommends \
-  # ca-certificates \
-  # locales \
-  # tzdata \
-  # wget \
-  && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
+ARG DEFAULT_UID="101"
+ARG DEFAULT_GID="101"
+RUN addgroup -S -g "${DEFAULT_GID}" clickhouse && \
+  adduser -S -h "/var/lib/clickhouse" -s /bin/bash -G clickhouse -g "ClickHouse server" -u "${DEFAULT_UID}" clickhouse
 
-# install
-COPY --from=builder /app/clickhouse /clickhouse
-RUN chmod +x /clickhouse && cp /clickhouse /usr/bin/clickhouse
+RUN arch=${TARGETARCH:-arm64} \
+  && cd /tmp \
+  && if [ -n "${DIRECT_DOWNLOAD_URLS}" ]; then \
+  # echo "installing from provided urls with tgz packages: ${DIRECT_DOWNLOAD_URLS}" \
+  # && for url in $DIRECT_DOWNLOAD_URLS; do \
+  # echo "Get ${url}" \
+  # && wget -c -q "$url" \
+  # ; done \
+  else \
+  for package in ${PACKAGES}; do \
+  echo "Get ${REPOSITORY}/${package}-${VERSION}-${arch}.tgz" \
+  && wget -c -q "${REPOSITORY}/${package}-${VERSION}-${arch}.tgz" \
+  && wget -c -q "${REPOSITORY}/${package}-${VERSION}-${arch}.tgz.sha512" \
+  ; done \
+  fi \
+  && cat *.tgz.sha512 | sed 's:/output/:/tmp/:' | sha512sum -c \
+  && for file in *.tgz; do \
+  if [ -f "$file" ]; then \
+  echo "Unpacking $file"; \
+  tar xvzf "$file" --strip-components=1 -C /; \
+  fi \
+  ; done \
+  && rm /tmp/*.tgz /install -r \
+  && chmod +x /entrypoint.sh \
+  && apk add --no-cache bash tzdata \
+  && cp /usr/share/zoneinfo/UTC /etc/localtime \
+  && echo "UTC" > /etc/timezone
 
+ARG DEFAULT_CLIENT_CONFIG_DIR="/etc/clickhouse-client"
+ARG DEFAULT_SERVER_CONFIG_DIR="/etc/clickhouse-server"
+ARG DEFAULT_DATA_DIR="/var/lib/clickhouse"
+ARG DEFAULT_LOG_DIR="/var/log/clickhouse-server"
 
-# post install
-# we need to allow "others" access to clickhouse folder, because docker container
-# can be started with arbitrary uid (openshift usecase)
-RUN clickhouse local -q 'SELECT * FROM system.build_options' \
-  && mkdir -p /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client \
-  && chmod ugo+Xrw -R /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server /etc/clickhouse-client
+# we need to allow "others" access to ClickHouse folders, because docker containers
+# can be started with arbitrary uids (OpenShift usecase)
+RUN mkdir -p \
+  "${DEFAULT_DATA_DIR}" \
+  "${DEFAULT_LOG_DIR}" \
+  "${DEFAULT_CLIENT_CONFIG_DIR}" \
+  "${DEFAULT_SERVER_CONFIG_DIR}/config.d" \
+  "${DEFAULT_SERVER_CONFIG_DIR}/users.d" \
+  /docker-entrypoint-initdb.d \
+  && chown clickhouse:clickhouse "${DEFAULT_DATA_DIR}" \
+  && chown root:clickhouse "${DEFAULT_LOG_DIR}" \
+  && chmod ugo+Xrw -R "${DEFAULT_DATA_DIR}" "${DEFAULT_LOG_DIR}" "${DEFAULT_CLIENT_CONFIG_DIR}" "${DEFAULT_SERVER_CONFIG_DIR}"
 
-# RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
-ENV TZ=UTC
-
-RUN mkdir /docker-entrypoint-initdb.d
-
-COPY docker_related_config.xml /etc/clickhouse-server/config.d/
-COPY config.xml /etc/clickhouse-server/config.xml
-COPY entrypoint.sh /entrypoint.sh
-
+VOLUME "${DEFAULT_DATA_DIR}"
 EXPOSE 9000 8123 9009
-VOLUME /var/lib/clickhouse
-
-ENV CLICKHOUSE_CONFIG=/etc/clickhouse-server/config.xml
 
 ENTRYPOINT ["/entrypoint.sh"]
